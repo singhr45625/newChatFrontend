@@ -13,10 +13,12 @@ import VideoPlayer from "./Components/VideoPlayer";
 
 import { useAuthStore } from "./Store/useAuthStore";
 import { useCallStore } from "./Store/useCallStore";
+import { useThemeStore } from "./Store/useThemeStore";
 
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
   const { stream, setStream, callAccepted, callEnded, call } = useCallStore();
+  const { theme } = useThemeStore();
 
   useEffect(() => {
     checkAuth();
@@ -40,7 +42,7 @@ const App = () => {
     );
 
   return (
-    <div data-theme="light">
+    <div data-theme={theme}>
       <Navbar />
 
       <Routes>
