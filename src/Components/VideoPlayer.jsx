@@ -37,7 +37,7 @@ const VideoPlayer = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 aspect-video bg-gray-900">
                     {/* My Video */}
                     <div className="relative rounded-xl overflow-hidden bg-gray-800 border-2 border-primary/20">
-                        <video playsInline muted ref={myVideoRef} autoPlay className="w-full h-full object-cover" />
+                        <video playsInline muted ref={myVideoRef} autoPlay className="w-full h-full object-cover -scale-x-100" />
                         <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-full text-white text-sm">
                             You (Camera)
                         </div>

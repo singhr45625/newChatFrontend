@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: red !important;
-}
 
 :root {
   --primary: #6366f1;
@@ -18,7 +15,9 @@ body {
   --base-100: #1d232a;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
