@@ -1,0 +1,61 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Loader } from "lucide-react";
+import { Toaster } from "react-hot-toast";
+
+import Navbar from "./Components/Navbar";
+import HomePage from "./Pages/HomePage";
+import SignUpPage from "./Pages/SignUpPage";
+import LoginPage from "./Pages/LoginPage";
+import SettingsPage from "./Pages/SettingsPage";
+import ProfilePage from "./Pages/ProfilePage";
+import VideoPlayer from "./Components/VideoPlayer";
+
+import { useAuthStore } from "./Store/useAuthStore";
+import { useCallStore } from "./Store/useCallStore";
+
+const App = () => {
+  const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
+  const { stream, setStream, callAccepted, callEnded, call } = useCallStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  useEffect(() => {
+    if (authUser && !stream) {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((currentStream) => {
+        setStream(currentStream);
+      });
+    }
+  }, [authUser, stream, setStream]);
+
+  console.log({ authUser });
+
+  if (isCheckingAuth && !authUser)
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader className="size-10 animate-spin" />
+      </div>
+    );
+
+  return (
+    <div data-theme="light">
+      <Navbar />
+
+      <Routes>
+        <Route path="/" element={authUser ? <HomePage /> : <Navigate to="/login" />} />
+        <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
+        <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
+      </Routes>
+
+      {stream && (callAccepted && !callEnded || call.isReceivingCall) && <VideoPlayer />}
+
+      <Toaster />
+    </div>
+  );
+};
+
+export default App;
