@@ -2,15 +2,23 @@ import { useEffect, useState } from "react";
 import { useChatStore } from "../Store/useChatStore";
 import { useAuthStore } from "../Store/useAuthStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
-import { Users, Plus, Hash } from "lucide-react";
+import { Users, Plus, Hash, Search } from "lucide-react";
 import CreateGroupModal from "./CreateGroupModal";
 
 const Sidebar = () => {
-    const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, groups, getGroups, setSelectedGroup, selectedGroup } = useChatStore();
+    const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, groups, getGroups, setSelectedGroup, selectedGroup, searchUser, isSearchLoading } = useChatStore();
 
     const { onlineUsers } = useAuthStore();
     const [showOnlineOnly, setShowOnlineOnly] = useState(false);
     const [showGroupModal, setShowGroupModal] = useState(false);
+    const [searchEmail, setSearchEmail] = useState("");
+
+    const handleSearch = async (e) => {
+        e.preventDefault();
+        if (!searchEmail.trim()) return;
+        await searchUser(searchEmail.trim());
+        setSearchEmail("");
+    };
 
     useEffect(() => {
         getUsers();
@@ -43,6 +51,24 @@ const Sidebar = () => {
                     </label>
                     <span className="text-xs text-gray-500">({onlineUsers.length - 1} online)</span>
                 </div>
+
+                {/* Search input */}
+                <form onSubmit={handleSearch} className="mt-4 hidden lg:flex gap-2">
+                    <input
+                        type="email"
+                        placeholder="Search by email..."
+                        className="input input-sm input-bordered w-full bg-gray-50 h-9 rounded-xl focus:bg-white transition-all text-sm"
+                        value={searchEmail}
+                        onChange={(e) => setSearchEmail(e.target.value)}
+                    />
+                    <button
+                        type="submit"
+                        className="btn btn-sm btn-primary h-9 w-9 p-0 rounded-xl"
+                        disabled={isSearchLoading}
+                    >
+                        {isSearchLoading ? <span className="loading loading-spinner loading-xs"></span> : <Search className="size-4" />}
+                    </button>
+                </form>
             </div>
 
             <div className="overflow-y-auto w-full py-3">
