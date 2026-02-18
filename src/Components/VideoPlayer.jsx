@@ -14,6 +14,7 @@ const VideoPlayer = () => {
         answerCall,
         isCalling,
         isRinging,
+        isOtherUserRinging,
         isSwapped,
         toggleSwap
     } = useCallStore();
@@ -103,7 +104,9 @@ const VideoPlayer = () => {
                         {call.name?.[0] || "?"}
                     </div>
 
-                    <h2 className="text-3xl font-bold mb-2">Calling {call.name || "User"}...</h2>
+                    <h2 className="text-3xl font-bold mb-2">
+                        {isOtherUserRinging ? `Ringing ${call.name || "User"}...` : `Calling ${call.name || "User"}...`}
+                    </h2>
                     <div className="flex gap-2 mb-16">
                         <div className="size-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
                         <div className="size-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />

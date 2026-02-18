@@ -16,13 +16,19 @@ import { useCallStore } from "./Store/useCallStore";
 import { useThemeStore } from "./Store/useThemeStore";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
-  const { stream, setStream, callAccepted, callEnded, call, isCalling, isRinging } = useCallStore();
+  const { authUser, checkAuth, isCheckingAuth, onlineUsers, socket } = useAuthStore();
+  const { stream, setStream, callAccepted, callEnded, call, isCalling, isRinging, initializeCallListeners } = useCallStore();
   const { theme } = useThemeStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    if (authUser && socket) {
+      initializeCallListeners();
+    }
+  }, [authUser, socket, initializeCallListeners]);
 
   console.log({ authUser });
 

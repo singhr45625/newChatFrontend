@@ -8,6 +8,7 @@ export const useCallStore = create((set, get) => ({
     callEnded: false,
     isCalling: false, // Outgoing call
     isRinging: false, // Incoming call
+    isOtherUserRinging: false, // For the caller to know if the recipient's phone is ringing
     isSwapped: false, // For PiP layout
     stream: null,
     remoteStream: null,
@@ -22,7 +23,7 @@ export const useCallStore = create((set, get) => ({
     setCall: (call) => set({ call, isRinging: !!call.isReceivingCall }),
     setCallAccepted: (val) => set({ callAccepted: val, isRinging: false, isCalling: false }),
     setCallEnded: (val) => {
-        set({ callEnded: val, isCalling: false, isRinging: false });
+        set({ callEnded: val, isCalling: false, isRinging: false, isOtherUserRinging: false });
         if (val) set({ remoteStream: null });
     },
     toggleSwap: () => set((state) => ({ isSwapped: !state.isSwapped })),
@@ -36,6 +37,31 @@ export const useCallStore = create((set, get) => ({
             console.error("Error getting media stream:", error);
             return null;
         }
+    },
+
+    initializeCallListeners: () => {
+        const { socket } = useAuthStore.getState();
+        if (!socket) return;
+
+        // Clean up any existing listeners to avoid duplicates
+        socket.off("callUser");
+        socket.off("callAccepted");
+        socket.off("endCall");
+        socket.off("ringing");
+
+        socket.on("callUser", ({ from, name: callerName, signal }) => {
+            set({ call: { isReceivingCall: true, from, name: callerName, signal }, isRinging: true });
+            // Notify the caller that we are ringing
+            socket.emit("notifyRinging", { to: from });
+        });
+
+        socket.on("ringing", () => {
+            set({ isOtherUserRinging: true });
+        });
+
+        socket.on("endCall", () => {
+            get().cleanupCall();
+        });
     },
 
     answerCall: async () => {
@@ -73,7 +99,7 @@ export const useCallStore = create((set, get) => ({
 
         const { socket, authUser } = useAuthStore.getState();
 
-        set({ isCalling: true, otherUserId: id, call: { ...get().call, name } });
+        set({ isCalling: true, otherUserId: id, call: { ...get().call, name }, isOtherUserRinging: false });
 
         const peer = new Peer({ initiator: true, trickle: false, stream });
 
@@ -91,23 +117,22 @@ export const useCallStore = create((set, get) => ({
         });
 
         socket.on("callAccepted", (signal) => {
-            set({ callAccepted: true, isCalling: false });
+            set({ callAccepted: true, isCalling: false, isOtherUserRinging: false });
             peer.signal(signal);
         });
 
         set({ connectionRef: peer });
     },
 
-    leaveCall: () => {
-        const { socket } = useAuthStore.getState();
-        const { otherUserId, connectionRef, stream } = get();
-
-        if (socket && otherUserId) {
-            socket.emit("endCall", { to: otherUserId });
-        }
+    cleanupCall: () => {
+        const { connectionRef, stream } = get();
 
         if (connectionRef) {
-            connectionRef.destroy();
+            try {
+                connectionRef.destroy();
+            } catch (err) {
+                console.error("Error destroying peer connection:", err);
+            }
         }
 
         if (stream) {
@@ -119,11 +144,26 @@ export const useCallStore = create((set, get) => ({
             callEnded: true,
             isCalling: false,
             isRinging: false,
+            isOtherUserRinging: false,
             otherUserId: null,
             remoteStream: null,
             stream: null,
             connectionRef: null,
             call: {},
         });
+
+        // Ensure state is clean for next call
+        setTimeout(() => set({ callEnded: false }), 2000);
+    },
+
+    leaveCall: () => {
+        const { socket } = useAuthStore.getState();
+        const { otherUserId } = get();
+
+        if (socket && otherUserId) {
+            socket.emit("endCall", { to: otherUserId });
+        }
+
+        get().cleanupCall();
     },
 }));
