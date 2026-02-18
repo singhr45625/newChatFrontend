@@ -51,7 +51,7 @@ const App = () => {
         <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
       </Routes>
 
-      {stream && (callAccepted && !callEnded || isCalling || isRinging) && <VideoPlayer />}
+      {(stream || isCalling || isRinging) && <VideoPlayer />}
 
       <Toaster />
     </div>
