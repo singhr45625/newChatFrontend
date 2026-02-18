@@ -52,14 +52,14 @@ export const useCallStore = create((set, get) => ({
         socket.off("ringing");
 
         socket.on("callUser", ({ from, name: callerName, signal }) => {
-            console.log("Received call from:", callerName);
+            console.log("CALL_DEBUG: callUser event received from:", callerName, "Setting isRinging to true");
             set({ call: { isReceivingCall: true, from, name: callerName, signal }, isRinging: true });
             // Notify the caller that we are ringing
             socket.emit("notifyRinging", { to: from });
         });
 
         socket.on("ringing", () => {
-            console.log("Other user is ringing");
+            console.log("CALL_DEBUG: ringing event received (recipient acknowledges)");
             set({ isOtherUserRinging: true });
         });
 
@@ -118,6 +118,7 @@ export const useCallStore = create((set, get) => ({
         const peer = new Peer({ initiator: true, trickle: false, stream });
 
         peer.on("signal", (data) => {
+            console.log("CALL_DEBUG: Emitting callUser to:", id);
             socket.emit("callUser", {
                 userToCall: id,
                 signalData: data,

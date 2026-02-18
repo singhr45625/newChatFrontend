@@ -26,9 +26,14 @@ const App = () => {
 
   useEffect(() => {
     if (authUser && socket) {
+      console.log("CALL_DEBUG: Initializing call listeners from App.jsx");
       initializeCallListeners();
     }
   }, [authUser, socket, initializeCallListeners]);
+
+  if (isCalling || isRinging) {
+    console.log("CALL_DEBUG: Rendering VideoPlayer. isCalling:", isCalling, "isRinging:", isRinging);
+  }
 
   console.log({ authUser });
 

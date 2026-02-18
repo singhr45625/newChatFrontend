@@ -99,18 +99,6 @@ export const useAuthStore = create((set, get) => ({
         socket.on("getOnlineUsers", (userIds) => {
             set({ onlineUsers: userIds });
         });
-
-        socket.on("callUser", ({ signal, from, name: callerName }) => {
-            import("./useCallStore.js").then((module) => {
-                module.useCallStore.getState().setCall({ isReceivingCall: true, from, name: callerName, signal });
-            });
-        });
-
-        socket.on("endCall", () => {
-            import("./useCallStore.js").then((module) => {
-                module.useCallStore.getState().leaveCall();
-            });
-        });
     },
     disconnectSocket: () => {
         if (get().socket?.connected) get().socket.disconnect();
