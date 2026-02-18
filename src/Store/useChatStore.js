@@ -63,6 +63,27 @@ export const useChatStore = create((set, get) => ({
 
     sendMessage: async (messageData) => {
         const { selectedUser, selectedGroup, messages } = get();
+        const authUser = useAuthStore.getState().authUser;
+
+        // Optimistic update
+        const tempId = Date.now().toString();
+        const optimisticMessage = {
+            _id: tempId,
+            senderId: authUser._id,
+            text: messageData.text,
+            image: messageData.image,
+            createdAt: new Date().toISOString(),
+            isOptimistic: true,
+        };
+
+        if (selectedUser) {
+            optimisticMessage.receiverId = selectedUser._id;
+        } else if (selectedGroup) {
+            optimisticMessage.groupId = selectedGroup._id;
+        }
+
+        set({ messages: [...messages, optimisticMessage] });
+
         try {
             let res;
             if (selectedUser) {
@@ -70,9 +91,17 @@ export const useChatStore = create((set, get) => ({
             } else if (selectedGroup) {
                 res = await axiosInstance.post(`/messages/groups/send/${selectedGroup._id}`, messageData);
             }
-            set({ messages: [...messages, res.data] });
+
+            // Replace optimistic message with actual message from server
+            set((state) => ({
+                messages: state.messages.map((m) => m._id === tempId ? res.data : m)
+            }));
         } catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(error.response?.data?.message || "Failed to send message");
+            // Remove optimistic message on failure
+            set((state) => ({
+                messages: state.messages.filter((m) => m._id !== tempId)
+            }));
         }
     },
 

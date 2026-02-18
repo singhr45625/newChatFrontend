@@ -46,10 +46,10 @@ const ChatHeader = () => {
                 <div className="flex items-center gap-2">
                     {selectedUser && (
                         <>
-                            <button onClick={() => callUser(selectedUser._id)} className="p-2.5 hover:bg-gray-50 rounded-xl text-gray-600 border border-gray-100 transition-all hover:border-indigo-100 hover:text-indigo-600">
+                            <button onClick={() => callUser(selectedUser._id, selectedUser.fullName)} className="p-2.5 hover:bg-gray-50 rounded-xl text-gray-600 border border-gray-100 transition-all hover:border-indigo-100 hover:text-indigo-600">
                                 <Phone className="size-5" />
                             </button>
-                            <button onClick={() => callUser(selectedUser._id)} className="p-2.5 hover:bg-gray-50 rounded-xl text-gray-600 border border-gray-100 transition-all hover:border-indigo-100 hover:text-indigo-600">
+                            <button onClick={() => callUser(selectedUser._id, selectedUser.fullName)} className="p-2.5 hover:bg-gray-50 rounded-xl text-gray-600 border border-gray-100 transition-all hover:border-indigo-100 hover:text-indigo-600">
                                 <Video className="size-5" />
                             </button>
                         </>

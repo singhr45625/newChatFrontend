@@ -6,6 +6,9 @@ export const useCallStore = create((set, get) => ({
     call: {},
     callAccepted: false,
     callEnded: false,
+    isCalling: false, // Outgoing call
+    isRinging: false, // Incoming call
+    isSwapped: false, // For PiP layout
     stream: null,
     remoteStream: null,
     name: "",
@@ -16,17 +19,35 @@ export const useCallStore = create((set, get) => ({
 
     setStream: (stream) => set({ stream }),
     setRemoteStream: (remoteStream) => set({ remoteStream }),
-    setCall: (call) => set({ call }),
-    setCallAccepted: (val) => set({ callAccepted: val }),
+    setCall: (call) => set({ call, isRinging: !!call.isReceivingCall }),
+    setCallAccepted: (val) => set({ callAccepted: val, isRinging: false, isCalling: false }),
     setCallEnded: (val) => {
-        set({ callEnded: val });
+        set({ callEnded: val, isCalling: false, isRinging: false });
         if (val) set({ remoteStream: null });
     },
+    toggleSwap: () => set((state) => ({ isSwapped: !state.isSwapped })),
 
-    answerCall: () => {
-        set({ callAccepted: true });
+    getMediaStream: async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            set({ stream });
+            return stream;
+        } catch (error) {
+            console.error("Error getting media stream:", error);
+            return null;
+        }
+    },
+
+    answerCall: async () => {
+        let { stream } = get();
+        if (!stream) {
+            stream = await get().getMediaStream();
+        }
+        if (!stream) return;
+
+        set({ callAccepted: true, isRinging: false });
         const { socket } = useAuthStore.getState();
-        const { stream, call } = get();
+        const { call } = get();
 
         const peer = new Peer({ initiator: false, trickle: false, stream });
 
@@ -43,9 +64,16 @@ export const useCallStore = create((set, get) => ({
         set({ connectionRef: peer, otherUserId: call.from });
     },
 
-    callUser: (id) => {
+    callUser: async (id, name) => {
+        let { stream } = get();
+        if (!stream) {
+            stream = await get().getMediaStream();
+        }
+        if (!stream) return;
+
         const { socket, authUser } = useAuthStore.getState();
-        const { stream } = get();
+
+        set({ isCalling: true, otherUserId: id, call: { ...get().call, name } });
 
         const peer = new Peer({ initiator: true, trickle: false, stream });
 
@@ -63,29 +91,39 @@ export const useCallStore = create((set, get) => ({
         });
 
         socket.on("callAccepted", (signal) => {
-            set({ callAccepted: true });
+            set({ callAccepted: true, isCalling: false });
             peer.signal(signal);
         });
 
-        set({ connectionRef: peer, otherUserId: id });
+        set({ connectionRef: peer });
     },
 
     leaveCall: () => {
         const { socket } = useAuthStore.getState();
-        const { otherUserId, connectionRef } = get();
+        const { otherUserId, connectionRef, stream } = get();
 
         if (socket && otherUserId) {
             socket.emit("endCall", { to: otherUserId });
         }
 
+        if (connectionRef) {
+            connectionRef.destroy();
+        }
+
+        if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+        }
+
         set({
             callAccepted: false,
             callEnded: true,
+            isCalling: false,
+            isRinging: false,
             otherUserId: null,
             remoteStream: null,
+            stream: null,
+            connectionRef: null,
+            call: {},
         });
-
-        if (connectionRef) connectionRef.destroy();
-        window.location.reload(); // Simple way to reset state
     },
 }));

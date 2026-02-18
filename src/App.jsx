@@ -17,20 +17,12 @@ import { useThemeStore } from "./Store/useThemeStore";
 
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
-  const { stream, setStream, callAccepted, callEnded, call } = useCallStore();
+  const { stream, setStream, callAccepted, callEnded, call, isCalling, isRinging } = useCallStore();
   const { theme } = useThemeStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
-
-  useEffect(() => {
-    if (authUser && !stream) {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((currentStream) => {
-        setStream(currentStream);
-      });
-    }
-  }, [authUser, stream, setStream]);
 
   console.log({ authUser });
 
@@ -53,7 +45,7 @@ const App = () => {
         <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
       </Routes>
 
-      {stream && (callAccepted && !callEnded || call.isReceivingCall) && <VideoPlayer />}
+      {stream && (callAccepted && !callEnded || isCalling || isRinging) && <VideoPlayer />}
 
       <Toaster />
     </div>

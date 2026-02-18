@@ -78,8 +78,12 @@ const ChatContainer = () => {
                                 )}
                                 {message.text && <p>{message.text}</p>}
                             </div>
-                            <div className="text-[10px] text-gray-400 mt-1 self-end">
-                                {formatMessageTime(message.createdAt)}
+                            <div className="text-[10px] text-gray-400 mt-1 self-end flex items-center gap-1">
+                                {message.isOptimistic ? (
+                                    <span className="animate-pulse italic">Sending...</span>
+                                ) : (
+                                    formatMessageTime(message.createdAt)
+                                )}
                             </div>
                         </div>
                     </div>
