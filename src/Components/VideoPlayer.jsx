@@ -23,6 +23,24 @@ const VideoPlayer = () => {
     const userVideoRef = useRef();
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
+    const [timer, setTimer] = useState("00:00");
+
+    const { callStartTime } = useCallStore();
+
+    useEffect(() => {
+        let interval;
+        if (callAccepted && callStartTime) {
+            interval = setInterval(() => {
+                const durationInSeconds = Math.floor((Date.now() - callStartTime) / 1000);
+                const minutes = Math.floor(durationInSeconds / 60);
+                const seconds = durationInSeconds % 60;
+                setTimer(`${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`);
+            }, 1000);
+        } else {
+            setTimer("00:00");
+        }
+        return () => clearInterval(interval);
+    }, [callAccepted, callStartTime]);
 
     useEffect(() => {
         if (stream && myVideoRef.current) {
@@ -196,7 +214,7 @@ const VideoPlayer = () => {
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
                     <div className="size-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-white/70 text-sm">00:00</span>
+                    <span className="text-white/70 text-sm">{timer}</span>
                 </div>
             </div>
         </div>

@@ -17,6 +17,7 @@ export const useCallStore = create((set, get) => ({
     userVideo: null,
     connectionRef: null,
     otherUserId: null,
+    callStartTime: null,
 
     setStream: (stream) => set({ stream }),
     setRemoteStream: (remoteStream) => set({ remoteStream }),
@@ -67,7 +68,7 @@ export const useCallStore = create((set, get) => ({
             console.log("Call accepted by other user");
             const { connectionRef } = get();
             if (connectionRef) {
-                set({ callAccepted: true, isCalling: false, isOtherUserRinging: false });
+                set({ callAccepted: true, isCalling: false, isOtherUserRinging: false, callStartTime: Date.now() });
                 connectionRef.signal(signal);
             }
         });
@@ -85,7 +86,7 @@ export const useCallStore = create((set, get) => ({
         }
         if (!stream) return;
 
-        set({ callAccepted: true, isRinging: false });
+        set({ callAccepted: true, isRinging: false, callStartTime: Date.now() });
         const { socket } = useAuthStore.getState();
         const { call } = get();
 
@@ -149,6 +150,11 @@ export const useCallStore = create((set, get) => ({
             stream.getTracks().forEach((track) => track.stop());
         }
 
+        const { callStartTime, callAccepted, otherUserId } = get();
+        if (callAccepted && callStartTime && otherUserId) {
+            get().saveCallHistory();
+        }
+
         set({
             callAccepted: false,
             callEnded: true,
@@ -159,6 +165,7 @@ export const useCallStore = create((set, get) => ({
             remoteStream: null,
             stream: null,
             connectionRef: null,
+            callStartTime: null,
             call: {},
         });
 
@@ -176,4 +183,22 @@ export const useCallStore = create((set, get) => ({
 
         get().cleanupCall();
     },
+
+    saveCallHistory: async () => {
+        const { callStartTime, otherUserId } = get();
+        if (!callStartTime || !otherUserId) return;
+
+        const durationInSeconds = Math.floor((Date.now() - callStartTime) / 1000);
+        const minutes = Math.floor(durationInSeconds / 60);
+        const seconds = durationInSeconds % 60;
+        const durationStr = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+
+        try {
+            await axiosInstance.post(`/messages/send/${otherUserId}`, {
+                text: `📞 Video call ended - ${durationStr}`
+            });
+        } catch (error) {
+            console.error("Error saving call history:", error);
+        }
+    }
 }));
