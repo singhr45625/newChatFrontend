@@ -85,9 +85,12 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
-    sendMessage: async (messageData) => {
+    sendMessage: async (messageData, receiverIdOverride = null) => {
         const { selectedUser, selectedGroup, messages } = get();
         const authUser = useAuthStore.getState().authUser;
+
+        const targetReceiverId = receiverIdOverride || selectedUser?._id;
+        const targetGroupId = selectedGroup?._id;
 
         // Optimistic update
         const tempId = Date.now().toString();
@@ -100,32 +103,39 @@ export const useChatStore = create((set, get) => ({
             isOptimistic: true,
         };
 
-        if (selectedUser) {
-            optimisticMessage.receiverId = selectedUser._id;
-        } else if (selectedGroup) {
-            optimisticMessage.groupId = selectedGroup._id;
+        if (targetReceiverId) {
+            optimisticMessage.receiverId = targetReceiverId;
+        } else if (targetGroupId) {
+            optimisticMessage.groupId = targetGroupId;
         }
 
-        set({ messages: [...messages, optimisticMessage] });
+        // Only add to UI if it belongs to the current conversation
+        if (targetReceiverId === selectedUser?._id || targetGroupId === selectedGroup?._id) {
+            set({ messages: [...messages, optimisticMessage] });
+        }
 
         try {
             let res;
-            if (selectedUser) {
-                res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-            } else if (selectedGroup) {
-                res = await axiosInstance.post(`/messages/groups/send/${selectedGroup._id}`, messageData);
+            if (targetReceiverId) {
+                res = await axiosInstance.post(`/messages/send/${targetReceiverId}`, messageData);
+            } else if (targetGroupId) {
+                res = await axiosInstance.post(`/messages/groups/send/${targetGroupId}`, messageData);
             }
 
             // Replace optimistic message with actual message from server
-            set((state) => ({
-                messages: state.messages.map((m) => m._id === tempId ? res.data : m)
-            }));
+            if (targetReceiverId === selectedUser?._id || targetGroupId === selectedGroup?._id) {
+                set((state) => ({
+                    messages: state.messages.map((m) => m._id === tempId ? res.data : m)
+                }));
+            }
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to send message");
             // Remove optimistic message on failure
-            set((state) => ({
-                messages: state.messages.filter((m) => m._id !== tempId)
-            }));
+            if (targetReceiverId === selectedUser?._id || targetGroupId === selectedGroup?._id) {
+                set((state) => ({
+                    messages: state.messages.filter((m) => m._id !== tempId)
+                }));
+            }
         }
     },
 

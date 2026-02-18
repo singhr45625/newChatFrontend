@@ -45,12 +45,14 @@ const VideoPlayer = () => {
     useEffect(() => {
         if (stream && myVideoRef.current) {
             myVideoRef.current.srcObject = stream;
+            myVideoRef.current.play().catch(err => console.error("Local video play error:", err));
         }
     }, [stream, isCalling, isRinging, callAccepted, isSwapped]);
 
     useEffect(() => {
         if (remoteStream && userVideoRef.current) {
             userVideoRef.current.srcObject = remoteStream;
+            userVideoRef.current.play().catch(err => console.error("Remote video play error:", err));
         }
     }, [remoteStream, callAccepted, isSwapped]);
 

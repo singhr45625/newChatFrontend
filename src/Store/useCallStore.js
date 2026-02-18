@@ -194,9 +194,12 @@ export const useCallStore = create((set, get) => ({
         const durationStr = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
         try {
-            await axiosInstance.post(`/messages/send/${otherUserId}`, {
-                text: `📞 Video call ended - ${durationStr}`
-            });
+            // Lazy load useChatStore to avoid circular dependencies
+            const { useChatStore } = await import("./useChatStore");
+            await useChatStore.getState().sendMessage(
+                { text: `📞 Video call ended - ${durationStr}` },
+                otherUserId
+            );
         } catch (error) {
             console.error("Error saving call history:", error);
         }
