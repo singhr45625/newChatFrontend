@@ -43,6 +43,8 @@ export const useCallStore = create((set, get) => ({
         const { socket } = useAuthStore.getState();
         if (!socket) return;
 
+        console.log("Initializing call listeners...");
+
         // Clean up any existing listeners to avoid duplicates
         socket.off("callUser");
         socket.off("callAccepted");
@@ -50,16 +52,28 @@ export const useCallStore = create((set, get) => ({
         socket.off("ringing");
 
         socket.on("callUser", ({ from, name: callerName, signal }) => {
+            console.log("Received call from:", callerName);
             set({ call: { isReceivingCall: true, from, name: callerName, signal }, isRinging: true });
             // Notify the caller that we are ringing
             socket.emit("notifyRinging", { to: from });
         });
 
         socket.on("ringing", () => {
+            console.log("Other user is ringing");
             set({ isOtherUserRinging: true });
         });
 
+        socket.on("callAccepted", (signal) => {
+            console.log("Call accepted by other user");
+            const { connectionRef } = get();
+            if (connectionRef) {
+                set({ callAccepted: true, isCalling: false, isOtherUserRinging: false });
+                connectionRef.signal(signal);
+            }
+        });
+
         socket.on("endCall", () => {
+            console.log("Call ended by other user");
             get().cleanupCall();
         });
     },
@@ -114,11 +128,6 @@ export const useCallStore = create((set, get) => ({
 
         peer.on("stream", (currentStream) => {
             set({ remoteStream: currentStream });
-        });
-
-        socket.on("callAccepted", (signal) => {
-            set({ callAccepted: true, isCalling: false, isOtherUserRinging: false });
-            peer.signal(signal);
         });
 
         set({ connectionRef: peer });
