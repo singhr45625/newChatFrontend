@@ -28,13 +28,13 @@ const VideoPlayer = () => {
         if (stream && myVideoRef.current) {
             myVideoRef.current.srcObject = stream;
         }
-    }, [stream]);
+    }, [stream, isCalling, isRinging, callAccepted, isSwapped]);
 
     useEffect(() => {
         if (remoteStream && userVideoRef.current) {
             userVideoRef.current.srcObject = remoteStream;
         }
-    }, [remoteStream]);
+    }, [remoteStream, callAccepted, isSwapped]);
 
     const toggleMute = () => {
         if (stream) {
