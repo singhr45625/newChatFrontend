@@ -21,6 +21,7 @@ export const useCallStore = create((set, get) => ({
     callStartTime: null,
     isMinimized: false,
     facingMode: "user",
+    isSwitchingCamera: false,
 
     setIsMinimized: (val) => set({ isMinimized: val }),
 
@@ -50,8 +51,11 @@ export const useCallStore = create((set, get) => ({
     },
 
     switchCamera: async () => {
-        const { facingMode, stream, connectionRef } = get();
+        const { facingMode, stream, connectionRef, isSwitchingCamera } = get();
+        if (isSwitchingCamera) return;
+
         const newMode = facingMode === "user" ? "environment" : "user";
+        set({ isSwitchingCamera: true });
 
         toast.loading(`Switching to ${newMode === "user" ? "front" : "back"} camera...`, { id: "camera-switch" });
 
@@ -82,19 +86,39 @@ export const useCallStore = create((set, get) => ({
             }
 
             const newVideoTrack = newStream.getVideoTracks()[0];
-            const oldVideoTrack = stream ? stream.getVideoTracks()[0] : null;
 
-            if (connectionRef && oldVideoTrack) {
-                // CRITICAL: Replace track in peer connection BEFORE stopping the old track
-                // This prevents the "cannot replace track that was never added" error
-                connectionRef.replaceTrack(oldVideoTrack, newVideoTrack, stream);
+            if (connectionRef) {
+                // Attempt to find the ACTUAL track being sent by the peer connection
+                // This is more robust than relying on the Zustand stream state reference
+                let trackToReplace = null;
+
+                if (connectionRef._pc) {
+                    const senders = connectionRef._pc.getSenders();
+                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) trackToReplace = videoSender.track;
+                }
+
+                // Fallback to state track if peer sender not found
+                if (!trackToReplace && stream) {
+                    trackToReplace = stream.getVideoTracks()[0];
+                }
+
+                if (trackToReplace) {
+                    try {
+                        connectionRef.replaceTrack(trackToReplace, newVideoTrack, stream);
+                    } catch (replaceErr) {
+                        console.error("replaceTrack error:", replaceErr);
+                        // If replacement fails, we still want to update local view if possible,
+                        // but usually it's better to fail fast.
+                        throw replaceErr;
+                    }
+                }
             }
 
-            // Now safely stop the old video tracks to free up hardware
+            // Now safely stop the old video tracks
             if (stream) {
                 stream.getVideoTracks().forEach(track => {
                     track.stop();
-                    console.log("Stopped old video track:", track.label);
                 });
             }
 
@@ -109,14 +133,21 @@ export const useCallStore = create((set, get) => ({
             console.error("Critical camera switch error:", error);
             toast.error(`Switch failed: ${error.message || "Unknown error"}`, { id: "camera-switch" });
 
-            // Re-enable old video track if possible
+            // Recovery logic
             try {
                 const recoveryStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                 const recoveryTrack = recoveryStream.getVideoTracks()[0];
-                const currentTrack = stream ? stream.getVideoTracks()[0] : null;
 
-                if (connectionRef && currentTrack) {
-                    connectionRef.replaceTrack(currentTrack, recoveryTrack, stream);
+                // Try to find ANY video track to replace with recovery
+                let trackToReplace = null;
+                if (connectionRef && connectionRef._pc) {
+                    const senders = connectionRef._pc.getSenders();
+                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) trackToReplace = videoSender.track;
+                }
+
+                if (connectionRef && trackToReplace) {
+                    connectionRef.replaceTrack(trackToReplace, recoveryTrack, stream);
                 }
 
                 set({
@@ -128,6 +159,8 @@ export const useCallStore = create((set, get) => ({
             } catch (recErr) {
                 console.error("Recovery failed:", recErr);
             }
+        } finally {
+            set({ isSwitchingCamera: false });
         }
     },
 
