@@ -60,105 +60,49 @@ export const useCallStore = create((set, get) => ({
         toast.loading(`Switching to ${newMode === "user" ? "front" : "back"} camera...`, { id: "camera-switch" });
 
         try {
-            let newStream;
-            try {
-                // Attempt 1: Standard constraints
-                newStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: newMode } },
-                    audio: false
-                });
-            } catch (err) {
-                console.warn("Standard switch failed, trying device enumeration...", err);
-                // Attempt 2: Explicit device enumeration
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === "videoinput");
-
-                if (videoDevices.length > 1) {
-                    const backCamera = videoDevices.find(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment")) || videoDevices[1];
-
-                    newStream = await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: backCamera.deviceId } },
-                        audio: false
-                    });
-                } else {
-                    throw new Error("No other camera devices found");
-                }
-            }
+            // Simplified constraints for better compatibility across mobile devices
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: newMode },
+                audio: false
+            });
 
             const newVideoTrack = newStream.getVideoTracks()[0];
 
             if (connectionRef) {
-                // Attempt to find the ACTUAL track being sent by the peer connection
-                // This is more robust than relying on the Zustand stream state reference
+                // Find the track currently being sent by the peer connection
                 let trackToReplace = null;
-
                 if (connectionRef._pc) {
                     const senders = connectionRef._pc.getSenders();
                     const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                    if (videoSender) trackToReplace = videoSender.track;
-                }
-
-                // Fallback to state track if peer sender not found
-                if (!trackToReplace && stream) {
+                    trackToReplace = videoSender ? videoSender.track : (stream ? stream.getVideoTracks()[0] : null);
+                } else if (stream) {
                     trackToReplace = stream.getVideoTracks()[0];
                 }
 
                 if (trackToReplace) {
-                    try {
-                        connectionRef.replaceTrack(trackToReplace, newVideoTrack, stream);
-                    } catch (replaceErr) {
-                        console.error("replaceTrack error:", replaceErr);
-                        // If replacement fails, we still want to update local view if possible,
-                        // but usually it's better to fail fast.
-                        throw replaceErr;
-                    }
+                    // CRITICAL: Must pass the new stream containing the new track as the third argument
+                    connectionRef.replaceTrack(trackToReplace, newVideoTrack, newStream);
                 }
             }
 
-            // Now safely stop the old video tracks
-            if (stream) {
-                stream.getVideoTracks().forEach(track => {
-                    track.stop();
-                });
-            }
-
+            // Update state with the new combined stream
+            const oldStream = stream;
             const combinedStream = new MediaStream([
-                ...(stream ? stream.getAudioTracks() : []),
+                ...(oldStream ? oldStream.getAudioTracks() : []),
                 newVideoTrack
             ]);
 
             set({ stream: combinedStream, facingMode: newMode });
+
+            // Stop the old video tracks ONLY after the new one is active to prevent black screen
+            if (oldStream) {
+                oldStream.getVideoTracks().forEach(track => track.stop());
+            }
+
             toast.success(`Switched to ${newMode === "user" ? "front" : "back"} camera`, { id: "camera-switch" });
         } catch (error) {
-            console.error("Critical camera switch error:", error);
+            console.error("Camera switch error:", error);
             toast.error(`Switch failed: ${error.message || "Unknown error"}`, { id: "camera-switch" });
-
-            // Recovery logic
-            try {
-                const recoveryStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                const recoveryTrack = recoveryStream.getVideoTracks()[0];
-
-                // Try to find ANY video track to replace with recovery
-                let trackToReplace = null;
-                if (connectionRef && connectionRef._pc) {
-                    const senders = connectionRef._pc.getSenders();
-                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                    if (videoSender) trackToReplace = videoSender.track;
-                }
-
-                if (connectionRef && trackToReplace) {
-                    connectionRef.replaceTrack(trackToReplace, recoveryTrack, stream);
-                }
-
-                set({
-                    stream: new MediaStream([
-                        ...(stream ? stream.getAudioTracks() : []),
-                        recoveryTrack
-                    ])
-                });
-            } catch (recErr) {
-                console.error("Recovery failed:", recErr);
-            }
         } finally {
             set({ isSwitchingCamera: false });
         }
