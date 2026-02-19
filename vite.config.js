@@ -11,13 +11,15 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:5001",
+        target: "https://my-chat-app-nod.duckdns.org",
         changeOrigin: true,
+        secure: false,
       },
       "/socket.io": {
-        target: "http://localhost:5001",
-        ws: true,
+        target: "https://my-chat-app-nod.duckdns.org",
         changeOrigin: true,
+        secure: false,
+        ws: true,
       },
     },
   },
