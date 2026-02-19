@@ -56,11 +56,6 @@ export const useCallStore = create((set, get) => ({
         toast.loading(`Switching to ${newMode === "user" ? "front" : "back"} camera...`, { id: "camera-switch" });
 
         try {
-            // Stop ONLY the video tracks to free up hardware
-            if (stream) {
-                stream.getVideoTracks().forEach(track => track.stop());
-            }
-
             let newStream;
             try {
                 // Attempt 1: Standard constraints
@@ -75,8 +70,6 @@ export const useCallStore = create((set, get) => ({
                 const videoDevices = devices.filter(device => device.kind === "videoinput");
 
                 if (videoDevices.length > 1) {
-                    // Try to find a device that wasn't the last one used (naive but often works)
-                    // Or specifically look for labels containing 'back' or 'environment'
                     const backCamera = videoDevices.find(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment")) || videoDevices[1];
 
                     newStream = await navigator.mediaDevices.getUserMedia({
@@ -89,14 +82,24 @@ export const useCallStore = create((set, get) => ({
             }
 
             const newVideoTrack = newStream.getVideoTracks()[0];
-            const oldVideoTrack = stream.getVideoTracks()[0];
+            const oldVideoTrack = stream ? stream.getVideoTracks()[0] : null;
 
-            if (connectionRef) {
+            if (connectionRef && oldVideoTrack) {
+                // CRITICAL: Replace track in peer connection BEFORE stopping the old track
+                // This prevents the "cannot replace track that was never added" error
                 connectionRef.replaceTrack(oldVideoTrack, newVideoTrack, stream);
             }
 
+            // Now safely stop the old video tracks to free up hardware
+            if (stream) {
+                stream.getVideoTracks().forEach(track => {
+                    track.stop();
+                    console.log("Stopped old video track:", track.label);
+                });
+            }
+
             const combinedStream = new MediaStream([
-                ...stream.getAudioTracks(),
+                ...(stream ? stream.getAudioTracks() : []),
                 newVideoTrack
             ]);
 
@@ -106,12 +109,22 @@ export const useCallStore = create((set, get) => ({
             console.error("Critical camera switch error:", error);
             toast.error(`Switch failed: ${error.message || "Unknown error"}`, { id: "camera-switch" });
 
-            // Re-enable old video track if possible (though we stopped it, so we might need to restart)
+            // Re-enable old video track if possible
             try {
                 const recoveryStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                 const recoveryTrack = recoveryStream.getVideoTracks()[0];
-                if (connectionRef) connectionRef.replaceTrack(stream.getVideoTracks()[0], recoveryTrack, stream);
-                set({ stream: new MediaStream([...stream.getAudioTracks(), recoveryTrack]) });
+                const currentTrack = stream ? stream.getVideoTracks()[0] : null;
+
+                if (connectionRef && currentTrack) {
+                    connectionRef.replaceTrack(currentTrack, recoveryTrack, stream);
+                }
+
+                set({
+                    stream: new MediaStream([
+                        ...(stream ? stream.getAudioTracks() : []),
+                        recoveryTrack
+                    ])
+                });
             } catch (recErr) {
                 console.error("Recovery failed:", recErr);
             }
