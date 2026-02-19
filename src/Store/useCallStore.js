@@ -18,25 +18,66 @@ export const useCallStore = create((set, get) => ({
     connectionRef: null,
     otherUserId: null,
     callStartTime: null,
+    isMinimized: false,
+    facingMode: "user",
+
+    setIsMinimized: (val) => set({ isMinimized: val }),
 
     setStream: (stream) => set({ stream }),
     setRemoteStream: (remoteStream) => set({ remoteStream }),
     setCall: (call) => set({ call, isRinging: !!call.isReceivingCall }),
     setCallAccepted: (val) => set({ callAccepted: val, isRinging: false, isCalling: false }),
     setCallEnded: (val) => {
-        set({ callEnded: val, isCalling: false, isRinging: false, isOtherUserRinging: false });
+        set({ callEnded: val, isCalling: false, isRinging: false, isOtherUserRinging: false, isMinimized: false });
         if (val) set({ remoteStream: null });
     },
     toggleSwap: () => set((state) => ({ isSwapped: !state.isSwapped })),
 
-    getMediaStream: async () => {
+    getMediaStream: async (fMode = null) => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            set({ stream });
+            const mode = fMode || get().facingMode;
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: mode },
+                audio: true
+            });
+            set({ stream, facingMode: mode });
             return stream;
         } catch (error) {
             console.error("Error getting media stream:", error);
             return null;
+        }
+    },
+
+    switchCamera: async () => {
+        const { facingMode, stream, connectionRef } = get();
+        const newMode = facingMode === "user" ? "environment" : "user";
+
+        console.log("Switching camera to:", newMode);
+
+        try {
+            // Get new stream with new facing mode
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: newMode },
+                audio: true
+            });
+
+            // Replace tracks in peer connection
+            if (connectionRef) {
+                const videoTrack = newStream.getVideoTracks()[0];
+                const oldVideoTrack = stream.getVideoTracks()[0];
+
+                // simple-peer replaceTrack
+                connectionRef.replaceTrack(oldVideoTrack, videoTrack, stream);
+            }
+
+            // Stop old tracks
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+
+            set({ stream: newStream, facingMode: newMode });
+        } catch (error) {
+            console.error("Error switching camera:", error);
         }
     },
 
