@@ -160,7 +160,10 @@ export const useChatStore = create((set, get) => ({
         socket.off("newGroupMessage");
 
         socket.on("newMessage", (newMessage) => {
+            console.log("[FRONTEND] Received 'newMessage':", newMessage);
             const isMessageSentToSelectedUser = newMessage.senderId === selectedUser?._id;
+            console.log(`[FRONTEND] Current selectedUser: ${selectedUser?._id}, Message Sender: ${newMessage.senderId}, Should Update: ${isMessageSentToSelectedUser}`);
+
             if (!isMessageSentToSelectedUser) return;
 
             set({

@@ -261,10 +261,12 @@ export const useCallStore = create((set, get) => ({
 
     leaveCall: () => {
         const { socket } = useAuthStore.getState();
-        const { otherUserId } = get();
+        const { otherUserId, call } = get();
 
-        if (socket && otherUserId) {
-            socket.emit("endCall", { to: otherUserId });
+        const targetId = otherUserId || call.from;
+
+        if (socket && targetId) {
+            socket.emit("endCall", { to: targetId });
         }
 
         get().cleanupCall();
