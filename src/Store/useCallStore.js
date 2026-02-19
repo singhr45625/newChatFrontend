@@ -55,29 +55,51 @@ export const useCallStore = create((set, get) => ({
         console.log("Switching camera to:", newMode);
 
         try {
+            // Stop ONLY the video tracks of the old stream to free up the hardware
+            if (stream) {
+                stream.getVideoTracks().forEach(track => track.stop());
+            }
+
             // Get new stream with new facing mode
+            // We use { exact: newMode } or { ideal: newMode } for better compatibility
+            // Also, we don't request audio again to avoid mic interruptions
             const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: newMode },
-                audio: true
+                video: { facingMode: { ideal: newMode } },
+                audio: false
             });
 
-            // Replace tracks in peer connection
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            const oldVideoTrack = stream.getVideoTracks()[0];
+
+            // Replace track in peer connection if it exists
             if (connectionRef) {
-                const videoTrack = newStream.getVideoTracks()[0];
-                const oldVideoTrack = stream.getVideoTracks()[0];
-
-                // simple-peer replaceTrack
-                connectionRef.replaceTrack(oldVideoTrack, videoTrack, stream);
+                connectionRef.replaceTrack(oldVideoTrack, newVideoTrack, stream);
             }
 
-            // Stop old tracks
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
+            // Construct a new combined stream: old audio tracks + new video track
+            const combinedStream = new MediaStream([
+                ...stream.getAudioTracks(),
+                newVideoTrack
+            ]);
 
-            set({ stream: newStream, facingMode: newMode });
+            set({ stream: combinedStream, facingMode: newMode });
         } catch (error) {
-            console.error("Error switching camera:", error);
+            console.log("Detailed camera switch error:", error);
+            // Fallback for some browsers that might fail with "ideal"
+            try {
+                const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+                const videoTrack = fallbackStream.getVideoTracks()[0];
+                if (connectionRef) {
+                    connectionRef.replaceTrack(stream.getVideoTracks()[0], videoTrack, stream);
+                }
+                const combined = new MediaStream([...stream.getAudioTracks(), videoTrack]);
+                set({ stream: combined });
+            } catch (fallbackError) {
+                console.error("Critical error switching camera:", fallbackError);
+            }
         }
     },
 
