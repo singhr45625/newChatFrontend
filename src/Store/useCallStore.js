@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import Peer from "simple-peer";
+import { toast } from "react-hot-toast";
 import { useAuthStore } from "./useAuthStore";
 
 export const useCallStore = create((set, get) => ({
@@ -52,53 +53,67 @@ export const useCallStore = create((set, get) => ({
         const { facingMode, stream, connectionRef } = get();
         const newMode = facingMode === "user" ? "environment" : "user";
 
-        console.log("Switching camera to:", newMode);
+        toast.loading(`Switching to ${newMode === "user" ? "front" : "back"} camera...`, { id: "camera-switch" });
 
         try {
-            // Stop ONLY the video tracks of the old stream to free up the hardware
+            // Stop ONLY the video tracks to free up hardware
             if (stream) {
                 stream.getVideoTracks().forEach(track => track.stop());
             }
 
-            // Get new stream with new facing mode
-            // We use { exact: newMode } or { ideal: newMode } for better compatibility
-            // Also, we don't request audio again to avoid mic interruptions
-            const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: newMode } },
-                audio: false
-            });
+            let newStream;
+            try {
+                // Attempt 1: Standard constraints
+                newStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: newMode } },
+                    audio: false
+                });
+            } catch (err) {
+                console.warn("Standard switch failed, trying device enumeration...", err);
+                // Attempt 2: Explicit device enumeration
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === "videoinput");
+
+                if (videoDevices.length > 1) {
+                    // Try to find a device that wasn't the last one used (naive but often works)
+                    // Or specifically look for labels containing 'back' or 'environment'
+                    const backCamera = videoDevices.find(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment")) || videoDevices[1];
+
+                    newStream = await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: backCamera.deviceId } },
+                        audio: false
+                    });
+                } else {
+                    throw new Error("No other camera devices found");
+                }
+            }
 
             const newVideoTrack = newStream.getVideoTracks()[0];
             const oldVideoTrack = stream.getVideoTracks()[0];
 
-            // Replace track in peer connection if it exists
             if (connectionRef) {
                 connectionRef.replaceTrack(oldVideoTrack, newVideoTrack, stream);
             }
 
-            // Construct a new combined stream: old audio tracks + new video track
             const combinedStream = new MediaStream([
                 ...stream.getAudioTracks(),
                 newVideoTrack
             ]);
 
             set({ stream: combinedStream, facingMode: newMode });
+            toast.success(`Switched to ${newMode === "user" ? "front" : "back"} camera`, { id: "camera-switch" });
         } catch (error) {
-            console.log("Detailed camera switch error:", error);
-            // Fallback for some browsers that might fail with "ideal"
+            console.error("Critical camera switch error:", error);
+            toast.error(`Switch failed: ${error.message || "Unknown error"}`, { id: "camera-switch" });
+
+            // Re-enable old video track if possible (though we stopped it, so we might need to restart)
             try {
-                const fallbackStream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: false
-                });
-                const videoTrack = fallbackStream.getVideoTracks()[0];
-                if (connectionRef) {
-                    connectionRef.replaceTrack(stream.getVideoTracks()[0], videoTrack, stream);
-                }
-                const combined = new MediaStream([...stream.getAudioTracks(), videoTrack]);
-                set({ stream: combined });
-            } catch (fallbackError) {
-                console.error("Critical error switching camera:", fallbackError);
+                const recoveryStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                const recoveryTrack = recoveryStream.getVideoTracks()[0];
+                if (connectionRef) connectionRef.replaceTrack(stream.getVideoTracks()[0], recoveryTrack, stream);
+                set({ stream: new MediaStream([...stream.getAudioTracks(), recoveryTrack]) });
+            } catch (recErr) {
+                console.error("Recovery failed:", recErr);
             }
         }
     },
