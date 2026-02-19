@@ -60,7 +60,20 @@ export const useCallStore = create((set, get) => ({
         toast.loading(`Switching to ${newMode === "user" ? "front" : "back"} camera...`, { id: "camera-switch" });
 
         try {
-            // Simplified constraints for better compatibility across mobile devices
+            // 1. DISCONNECT HARDWARE FIRST
+            // This is the most reliable way to prevent "Could not start video source" on many devices
+            if (stream) {
+                stream.getVideoTracks().forEach(track => {
+                    track.stop();
+                    console.log("HARDWARE_RELEASE: Stopped track", track.label);
+                });
+            }
+
+            // 2. COOL DOWN
+            // Give the OS/Hardware a moment to acknowledge the release
+            await new Promise(resolve => setTimeout(resolve, 150));
+
+            // 3. ACQUIRE NEW MEDIA
             const newStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: newMode },
                 audio: false
@@ -68,41 +81,56 @@ export const useCallStore = create((set, get) => ({
 
             const newVideoTrack = newStream.getVideoTracks()[0];
 
+            // 4. ROBUST TRACK REPLACEMENT
             if (connectionRef) {
-                // Find the track currently being sent by the peer connection
                 let trackToReplace = null;
+
+                // Directly inspect the PeerConnection's senders
+                // This is the only way to avoid "Cannot replace track that was never added"
                 if (connectionRef._pc) {
                     const senders = connectionRef._pc.getSenders();
                     const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                    trackToReplace = videoSender ? videoSender.track : (stream ? stream.getVideoTracks()[0] : null);
-                } else if (stream) {
+
+                    if (videoSender) {
+                        trackToReplace = videoSender.track;
+                        console.log("PEER_SYNC: Replacing internal RTC track:", trackToReplace.label);
+                    }
+                }
+
+                // If for some reason PC identification failed, we can't reliably replace
+                // but we will try a standard replacement as a last resort
+                if (!trackToReplace && stream) {
                     trackToReplace = stream.getVideoTracks()[0];
                 }
 
                 if (trackToReplace) {
-                    // CRITICAL: Must pass the new stream containing the new track as the third argument
+                    // MUST pass newStream as 3rd arg for simple-peer to map correctly
                     connectionRef.replaceTrack(trackToReplace, newVideoTrack, newStream);
+                } else {
+                    console.warn("PEER_SYNC: No track found to replace. This usually happens if the call hasn't fully established.");
                 }
             }
 
-            // Update state with the new combined stream
-            const oldStream = stream;
+            // 5. UPDATE LOCAL STATE
             const combinedStream = new MediaStream([
-                ...(oldStream ? oldStream.getAudioTracks() : []),
+                ...(stream ? stream.getAudioTracks() : []),
                 newVideoTrack
             ]);
 
             set({ stream: combinedStream, facingMode: newMode });
-
-            // Stop the old video tracks ONLY after the new one is active to prevent black screen
-            if (oldStream) {
-                oldStream.getVideoTracks().forEach(track => track.stop());
-            }
-
             toast.success(`Switched to ${newMode === "user" ? "front" : "back"} camera`, { id: "camera-switch" });
         } catch (error) {
-            console.error("Camera switch error:", error);
-            toast.error(`Switch failed: ${error.message || "Unknown error"}`, { id: "camera-switch" });
+            console.error("CRITICAL_CAMERA_ERROR:", error);
+
+            // RELAXED RECOVERY (Try standard user media if switch failed)
+            try {
+                const recoveryStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                set({ stream: new MediaStream([...(stream ? stream.getAudioTracks() : []), recoveryStream.getVideoTracks()[0]]) });
+            } catch (err) {
+                console.error("Recovery failed:", err);
+            }
+
+            toast.error(`Switch failed: ${error.message || "Hardware busy"}`, { id: "camera-switch" });
         } finally {
             set({ isSwitchingCamera: false });
         }
