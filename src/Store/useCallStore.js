@@ -60,77 +60,89 @@ export const useCallStore = create((set, get) => ({
         toast.loading(`Switching to ${newMode === "user" ? "front" : "back"} camera...`, { id: "camera-switch" });
 
         try {
-            // 1. DISCONNECT HARDWARE FIRST
-            // This is the most reliable way to prevent "Could not start video source" on many devices
-            if (stream) {
-                stream.getVideoTracks().forEach(track => {
-                    track.stop();
-                    console.log("HARDWARE_RELEASE: Stopped track", track.label);
+            // 1. IDENTIFY TRACKS FIRST (While hardware is still active)
+            let trackToReplace = null;
+            if (connectionRef && connectionRef._pc) {
+                const senders = connectionRef._pc.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                if (videoSender) {
+                    trackToReplace = videoSender.track;
+                    console.log("PEER_SYNC: Pre-identified track:", trackToReplace.label);
+                }
+            }
+
+            // Fallback to Zustand state if peer inspection fails
+            if (!trackToReplace && stream) {
+                trackToReplace = stream.getVideoTracks()[0];
+            }
+
+            let newStream;
+            try {
+                // 2. TRY CONCURRENT ACCESS (Smoothest)
+                // Some devices allow opening a second camera before closing the first
+                newStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: newMode },
+                    audio: false
+                });
+            } catch (err) {
+                console.warn("Concurrent access failed, falling back to hardware release:", err.name);
+
+                // 3. HARDWARE RELEASE FALLBACK
+                // Fixes "Could not start video source" on restricted devices
+                if (stream) {
+                    stream.getVideoTracks().forEach(track => track.stop());
+                }
+
+                // Mandatory cooldown for OS to release the camera resource
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                newStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: newMode },
+                    audio: false
                 });
             }
 
-            // 2. COOL DOWN
-            // Give the OS/Hardware a moment to acknowledge the release
-            await new Promise(resolve => setTimeout(resolve, 150));
-
-            // 3. ACQUIRE NEW MEDIA
-            const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: newMode },
-                audio: false
-            });
-
             const newVideoTrack = newStream.getVideoTracks()[0];
 
-            // 4. ROBUST TRACK REPLACEMENT
-            if (connectionRef) {
-                let trackToReplace = null;
-
-                // Directly inspect the PeerConnection's senders
-                // This is the only way to avoid "Cannot replace track that was never added"
-                if (connectionRef._pc) {
-                    const senders = connectionRef._pc.getSenders();
-                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-
-                    if (videoSender) {
-                        trackToReplace = videoSender.track;
-                        console.log("PEER_SYNC: Replacing internal RTC track:", trackToReplace.label);
-                    }
-                }
-
-                // If for some reason PC identification failed, we can't reliably replace
-                // but we will try a standard replacement as a last resort
-                if (!trackToReplace && stream) {
-                    trackToReplace = stream.getVideoTracks()[0];
-                }
-
-                if (trackToReplace) {
-                    // MUST pass newStream as 3rd arg for simple-peer to map correctly
+            // 4. STABLE REPLACEMENT
+            if (connectionRef && trackToReplace) {
+                try {
+                    // pass newStream as 3rd arg for simple-peer internal mapping
                     connectionRef.replaceTrack(trackToReplace, newVideoTrack, newStream);
-                } else {
-                    console.warn("PEER_SYNC: No track found to replace. This usually happens if the call hasn't fully established.");
+                } catch (replaceErr) {
+                    console.error("replaceTrack failed:", replaceErr);
+                    // If error is "track never added", it means our identification was wrong
+                    // we can't do much here except try to keep the local view updated
                 }
             }
 
-            // 5. UPDATE LOCAL STATE
+            // 5. FINAL STATE SYNC
             const combinedStream = new MediaStream([
                 ...(stream ? stream.getAudioTracks() : []),
                 newVideoTrack
             ]);
 
+            // Stop old tracks if we didn't stop them in the fallback step
+            if (stream) {
+                stream.getVideoTracks().forEach(track => {
+                    if (track.readyState === 'live') track.stop();
+                });
+            }
+
             set({ stream: combinedStream, facingMode: newMode });
             toast.success(`Switched to ${newMode === "user" ? "front" : "back"} camera`, { id: "camera-switch" });
         } catch (error) {
-            console.error("CRITICAL_CAMERA_ERROR:", error);
-
-            // RELAXED RECOVERY (Try standard user media if switch failed)
-            try {
-                const recoveryStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                set({ stream: new MediaStream([...(stream ? stream.getAudioTracks() : []), recoveryStream.getVideoTracks()[0]]) });
-            } catch (err) {
-                console.error("Recovery failed:", err);
-            }
-
+            console.error("FINAL_CAMERA_ERROR:", error);
             toast.error(`Switch failed: ${error.message || "Hardware busy"}`, { id: "camera-switch" });
+
+            // Minimal recovery to at least try and get ANY camera back
+            try {
+                if (!get().stream || get().stream.getVideoTracks().length === 0) {
+                    await get().getMediaStream();
+                }
+            } catch (recErr) {
+                console.error("Recovery failed:", recErr);
+            }
         } finally {
             set({ isSwitchingCamera: false });
         }
