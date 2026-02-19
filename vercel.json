@@ -1,14 +1,6 @@
 {
     "rewrites": [
         {
-            "source": "/api/(.*)",
-            "destination": "https://my-chat-app-nod.duckdns.org/api/$1"
-        },
-        {
-            "source": "/socket.io/(.*)",
-            "destination": "https://my-chat-app-nod.duckdns.org/socket.io/$1"
-        },
-        {
             "source": "/(.*)",
             "destination": "/index.html"
         }
