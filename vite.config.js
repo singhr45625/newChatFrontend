@@ -11,12 +11,12 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "https://my-chat-app-nod.duckdns.org",
+        target: "https://newchatapi.onrender.com",
         changeOrigin: true,
         secure: false,
       },
       "/socket.io": {
-        target: "https://my-chat-app-nod.duckdns.org",
+        target: "https://newchatapi.onrender.com",
         changeOrigin: true,
         secure: false,
         ws: true,
