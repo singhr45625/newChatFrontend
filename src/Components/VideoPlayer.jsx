@@ -29,6 +29,12 @@ const VideoPlayer = () => {
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [timer, setTimer] = useState("00:00");
 
+    // Draggable State
+    const [position, setPosition] = useState({ x: window.innerWidth - 200, y: 100 });
+    const dragRef = useRef(null);
+    const isDragging = useRef(false);
+    const offset = useRef({ x: 0, y: 0 });
+
     const { callStartTime } = useCallStore();
 
     useEffect(() => {
@@ -72,6 +78,46 @@ const VideoPlayer = () => {
             stream.getVideoTracks()[0].enabled = !stream.getVideoTracks()[0].enabled;
             setIsVideoOff(!isVideoOff);
         }
+    };
+
+    // ----- Draggable Logic -----
+    const handleMouseDown = (e) => {
+        // Prevent dragging if clicking buttons
+        if (e.target.closest('button')) return;
+
+        isDragging.current = true;
+        offset.current = {
+            x: e.clientX - position.x,
+            y: e.clientY - position.y
+        };
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isDragging.current) return;
+
+        // Calculate new position
+        let newX = e.clientX - offset.current.x;
+        let newY = e.clientY - offset.current.y;
+
+        // Boundary checks (keep fully on screen)
+        const maxX = window.innerWidth - 192; // 192 = width (w-48)
+        const maxY = window.innerHeight - 300; // Approx height
+
+        // Clamp values
+        if (newX < 0) newX = 0;
+        if (newY < 0) newY = 0;
+        if (newX > maxX) newX = maxX;
+        if (newY > maxY) newY = maxY;
+
+        setPosition({ x: newX, y: newY });
+    };
+
+    const handleMouseUp = () => {
+        isDragging.current = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
     };
 
     // 1. Ringing Screen (Incoming)
@@ -155,27 +201,62 @@ const VideoPlayer = () => {
     if (isMinimized) {
         return (
             <div
-                onClick={() => setIsMinimized(false)}
-                className="fixed top-24 right-6 w-40 h-56 sm:w-48 sm:h-64 bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl border-2 border-primary/30 z-[60] cursor-pointer transition-all hover:scale-105 group"
+                ref={dragRef}
+                style={{ left: position.x, top: position.y }}
+                onMouseDown={handleMouseDown}
+                className="fixed w-48 h-auto aspect-[9/16] sm:w-56 bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-700/50 z-[100] cursor-grab active:cursor-grabbing group hover:shadow-indigo-500/20 transition-shadow"
             >
-                <video
-                    playsInline
-                    ref={isSwapped ? myVideoRef : userVideoRef}
-                    autoPlay
-                    className={`w-full h-full object-cover ${(isSwapped && facingMode === 'user') ? "-scale-x-100" : ""}`}
-                />
+                {/* Main View (Remote) */}
+                <div className="relative w-full h-full bg-zinc-800">
+                    <video
+                        playsInline
+                        ref={isSwapped ? myVideoRef : userVideoRef}
+                        autoPlay
+                        className={`w-full h-full object-cover ${(isSwapped && facingMode === 'user') ? "-scale-x-100" : ""}`}
+                    />
 
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <Maximize2 className="size-8 text-white" />
+                    {/* Overlay Protection for dragging over video */}
+                    <div className="absolute inset-0 z-10 bg-transparent" />
                 </div>
 
-                <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white backdrop-blur-sm truncate max-w-[80%]">
+                {/* PiP View (Local) */}
+                <div className="absolute bottom-3 right-3 w-16 h-24 bg-zinc-950 rounded-lg overflow-hidden shadow-lg border border-white/10 z-20">
+                    <video
+                        playsInline
+                        muted={!isSwapped}
+                        ref={isSwapped ? userVideoRef : myVideoRef}
+                        autoPlay
+                        className={`w-full h-full object-cover ${(!isSwapped && facingMode === 'user') ? "-scale-x-100" : ""}`}
+                    />
+                </div>
+
+                {/* Controls (Hover only) */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity z-30 flex flex-col items-center justify-center gap-4">
+                    <button
+                        onClick={() => setIsMinimized(false)}
+                        className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white backdrop-blur-sm transition-all transform hover:scale-110"
+                        title="Maximize"
+                    >
+                        <Maximize2 className="size-6" />
+                    </button>
+                    <button
+                        onClick={leaveCall}
+                        className="p-2 bg-red-500/80 hover:bg-red-600/90 rounded-full text-white backdrop-blur-sm transition-all transform hover:scale-110"
+                        title="End Call"
+                    >
+                        <PhoneOff className="size-5" />
+                    </button>
+                </div>
+
+                {/* Name Tag */}
+                <div className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 rounded text-[10px] text-white backdrop-blur-sm truncate max-w-[80%] z-20 pointer-events-none">
                     {call.name || "Video Call"}
                 </div>
             </div>
         );
     }
 
+    // 4. MAXIMIZED View
     return (
         <div className="fixed inset-0 z-[60] bg-black">
             {/* Main Video (Background) */}
