@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import toast from "react-hot-toast";
-import { axiosInstance } from "../Lib/axios";
+import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 
 export const useChatStore = create((set, get) => ({
@@ -41,7 +41,10 @@ export const useChatStore = create((set, get) => ({
     searchUser: async (query) => {
         set({ isSearchLoading: true });
         try {
-            const res = await axiosInstance.get(`/messages/search?query=${query}`);
+            // Use 'params' for automatic query string construction and encoding
+            const res = await axiosInstance.get("/messages/search", {
+                params: { query }
+            });
             const searchedUsers = res.data; // Expecting an array now
 
             if (!Array.isArray(searchedUsers)) {
@@ -229,3 +232,5 @@ export const useChatStore = create((set, get) => ({
     setSelectedUser: (selectedUser) => set({ selectedUser, selectedGroup: null }),
     setSelectedGroup: (selectedGroup) => set({ selectedGroup, selectedUser: null }),
 }));
+
+

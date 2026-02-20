@@ -3,21 +3,21 @@ import { useEffect } from "react";
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
-import Navbar from "./Components/Navbar";
-import HomePage from "./Pages/HomePage";
-import SignUpPage from "./Pages/SignUpPage";
-import LoginPage from "./Pages/LoginPage";
-import SettingsPage from "./Pages/SettingsPage";
-import ProfilePage from "./Pages/ProfilePage";
-import VideoPlayer from "./Components/VideoPlayer";
+import Navbar from "./components/Navbar";
+import HomePage from "./pages/HomePage";
+import SignUpPage from "./pages/SignUpPage";
+import LoginPage from "./pages/LoginPage";
+import SettingsPage from "./pages/SettingsPage";
+import ProfilePage from "./pages/ProfilePage";
+import VideoPlayer from "./components/VideoPlayer";
 
-import { useAuthStore } from "./Store/useAuthStore";
-import { useCallStore } from "./Store/useCallStore";
-import { useThemeStore } from "./Store/useThemeStore";
+import { useAuthStore } from "./store/useAuthStore";
+import { useCallStore } from "./store/useCallStore";
+import { useThemeStore } from "./store/useThemeStore";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers, socket } = useAuthStore();
-  const { stream, setStream, callAccepted, callEnded, call, isCalling, isRinging, initializeCallListeners } = useCallStore();
+  const { authUser, checkAuth, isCheckingAuth, socket } = useAuthStore();
+  const { stream, isCalling, isRinging, initializeCallListeners } = useCallStore();
   const { theme } = useThemeStore();
 
   useEffect(() => {
@@ -64,3 +64,5 @@ const App = () => {
 };
 
 export default App;
+
+

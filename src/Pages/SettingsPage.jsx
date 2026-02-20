@@ -1,4 +1,4 @@
-import { useThemeStore, THEMES } from "../Store/useThemeStore";
+import { useThemeStore, THEMES } from "../store/useThemeStore";
 import { Send } from "lucide-react";
 
 const PREVIEW_MESSAGES = [
@@ -111,3 +111,5 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
+
+

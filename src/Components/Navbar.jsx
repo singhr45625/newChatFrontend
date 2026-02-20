@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useAuthStore } from "../Store/useAuthStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { LogOut, MessageSquare, Settings, User } from "lucide-react";
 
 const Navbar = () => {
@@ -53,3 +53,5 @@ const Navbar = () => {
     );
 };
 export default Navbar;
+
+

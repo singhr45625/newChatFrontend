@@ -1,11 +1,11 @@
-import { useChatStore } from "../Store/useChatStore";
-import { useEffect, useRef, useState } from "react";
+import { useChatStore } from "../store/useChatStore";
+import { useEffect, useRef } from "react";
 
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
-import { useAuthStore } from "../Store/useAuthStore";
-import { formatMessageTime } from "../Lib/utils";
+import { useAuthStore } from "../store/useAuthStore";
+import { formatMessageTime } from "../lib/utils";
 
 const ChatContainer = () => {
     const {
@@ -28,7 +28,7 @@ const ChatContainer = () => {
         subscribeToMessages();
 
         return () => unsubscribeFromMessages();
-    }, [selectedUser?._id, selectedGroup?._id, getMessages, getGroupMessages, subscribeToMessages, unsubscribeFromMessages]);
+    }, [selectedUser, selectedGroup, getMessages, getGroupMessages, subscribeToMessages, unsubscribeFromMessages]);
 
     useEffect(() => {
         if (messageEndRef.current && messages) {
@@ -95,3 +95,6 @@ const ChatContainer = () => {
     );
 };
 export default ChatContainer;
+
+
+

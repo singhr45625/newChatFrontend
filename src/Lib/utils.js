@@ -5,3 +5,5 @@ export function formatMessageTime(date) {
         hour12: false,
     });
 }
+
+

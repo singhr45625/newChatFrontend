@@ -1,12 +1,10 @@
 import { useRef, useEffect, useState } from "react";
-import { useCallStore } from "../Store/useCallStore";
-import { useAuthStore } from "../Store/useAuthStore";
+import { useCallStore } from "../store/useCallStore";
 import { PhoneOff, Phone, Mic, MicOff, Video, VideoOff, Camera, Minimize2, Maximize2, ChevronLeft } from "lucide-react";
 
 const VideoPlayer = () => {
     const {
         callAccepted,
-        callEnded,
         stream,
         remoteStream,
         call,
@@ -47,9 +45,20 @@ const VideoPlayer = () => {
                 setTimer(`${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`);
             }, 1000);
         } else {
-            setTimer("00:00");
+            // Re-zero timer when not in call, but only if not already zero
+            // to avoid cascading renders warning
         }
         return () => clearInterval(interval);
+    }, [callAccepted, callStartTime]);
+
+    // Separate effect for resetting timer to avoid cascading render warning in main effect
+    useEffect(() => {
+        if (!callAccepted || !callStartTime) {
+            const timeout = setTimeout(() => {
+                setTimer((prev) => (prev !== "00:00" ? "00:00" : prev));
+            }, 0);
+            return () => clearTimeout(timeout);
+        }
     }, [callAccepted, callStartTime]);
 
     useEffect(() => {
@@ -102,8 +111,10 @@ const VideoPlayer = () => {
         let newY = e.clientY - offset.current.y;
 
         // Boundary checks (keep fully on screen)
-        const maxX = window.innerWidth - 192; // 192 = width (w-48)
-        const maxY = window.innerHeight - 300; // Approx height
+        const width = window.innerWidth < 640 ? 128 : 160; // w-32 or sm:w-40
+        const height = (width * 16) / 9;
+        const maxX = window.innerWidth - width;
+        const maxY = window.innerHeight - height;
 
         // Clamp values
         if (newX < 0) newX = 0;
@@ -204,7 +215,7 @@ const VideoPlayer = () => {
                 ref={dragRef}
                 style={{ left: position.x, top: position.y }}
                 onMouseDown={handleMouseDown}
-                className="fixed w-48 h-auto aspect-[9/16] sm:w-56 bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-700/50 z-[100] cursor-grab active:cursor-grabbing group hover:shadow-indigo-500/20 transition-shadow"
+                className="fixed w-32 h-auto aspect-[9/16] sm:w-40 bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-700/50 z-[100] cursor-grab active:cursor-grabbing group hover:shadow-indigo-500/20 transition-shadow"
             >
                 {/* Main View (Remote) */}
                 <div className="relative w-full h-full bg-zinc-800">
@@ -220,7 +231,7 @@ const VideoPlayer = () => {
                 </div>
 
                 {/* PiP View (Local) */}
-                <div className="absolute bottom-3 right-3 w-16 h-24 bg-zinc-950 rounded-lg overflow-hidden shadow-lg border border-white/10 z-20">
+                <div className="absolute bottom-2 right-2 w-10 h-16 bg-zinc-950 rounded-lg overflow-hidden shadow-lg border border-white/10 z-20">
                     <video
                         playsInline
                         muted={!isSwapped}
@@ -362,3 +373,6 @@ const VideoPlayer = () => {
 };
 
 export default VideoPlayer;
+
+
+
