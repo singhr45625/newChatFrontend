@@ -38,22 +38,45 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
-    searchUser: async (email) => {
+    searchUser: async (query) => {
         set({ isSearchLoading: true });
         try {
-            const res = await axiosInstance.get(`/messages/search?email=${email}`);
-            const searchedUser = res.data;
+            const res = await axiosInstance.get(`/messages/search?query=${query}`);
+            const searchedUsers = res.data; // Expecting an array now
 
-            // Add searched user to the users list if they are not already there
-            const { users } = get();
-            const userExists = users.some((u) => u._id === searchedUser._id);
-
-            if (!userExists) {
-                set({ users: [...users, searchedUser] });
+            if (!Array.isArray(searchedUsers)) {
+                // Backward compatibility if backend sends single object
+                const user = searchedUsers;
+                const { users } = get();
+                if (!users.some((u) => u._id === user._id)) {
+                    set({ users: [...users, user] });
+                }
+                set({ selectedUser: user, selectedGroup: null });
+                toast.success(`Found user: ${user.fullName}`);
+                return;
             }
 
-            set({ selectedUser: searchedUser, selectedGroup: null });
-            toast.success(`Found user: ${searchedUser.fullName}`);
+            // If we found multiple users, add all new ones to the sidebar
+            const { users } = get();
+            const newUsersList = [...users];
+            let addedCount = 0;
+
+            searchedUsers.forEach(searchedUser => {
+                if (!newUsersList.some((u) => u._id === searchedUser._id)) {
+                    newUsersList.push(searchedUser);
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                set({ users: newUsersList });
+            }
+
+            // Select the first one found for immediate interaction
+            if (searchedUsers.length > 0) {
+                set({ selectedUser: searchedUsers[0], selectedGroup: null });
+                toast.success(`Found ${searchedUsers.length} user(s)`);
+            }
         } catch (error) {
             toast.error(error.response?.data?.message || "User not found");
         } finally {
@@ -159,16 +182,34 @@ export const useChatStore = create((set, get) => ({
         socket.off("newMessage");
         socket.off("newGroupMessage");
 
-        socket.on("newMessage", (newMessage) => {
+        socket.on("newMessage", async (newMessage) => {
             console.log("[FRONTEND] Received 'newMessage':", newMessage);
-            const isMessageSentToSelectedUser = newMessage.senderId === selectedUser?._id;
-            console.log(`[FRONTEND] Current selectedUser: ${selectedUser?._id}, Message Sender: ${newMessage.senderId}, Should Update: ${isMessageSentToSelectedUser}`);
 
-            if (!isMessageSentToSelectedUser) return;
+            // Check if the sender is already in our users list
+            const { users, selectedUser } = get();
+            const senderId = newMessage.senderId;
+            const userExists = users.some((u) => u._id === senderId);
 
-            set({
-                messages: [...get().messages, newMessage],
-            });
+            if (!userExists) {
+                try {
+                    // Fetch user details if they are not in the sidebar
+                    const res = await axiosInstance.get(`/messages/participant/${senderId}`);
+                    const newUser = res.data;
+                    set({ users: [...get().users, newUser] });
+                    console.log("[FRONTEND] New user added to sidebar:", newUser.fullName);
+                } catch (error) {
+                    console.error("[FRONTEND] Error fetching new participant details:", error);
+                }
+            }
+
+            const isMessageSentToSelectedUser = senderId === selectedUser?._id;
+            console.log(`[FRONTEND] Current selectedUser: ${selectedUser?._id}, Message Sender: ${senderId}, Should Update Chat: ${isMessageSentToSelectedUser}`);
+
+            if (isMessageSentToSelectedUser) {
+                set({
+                    messages: [...get().messages, newMessage],
+                });
+            }
         });
 
         socket.on("newGroupMessage", (newGroupMessage) => {

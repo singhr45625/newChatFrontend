@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useChatStore } from "../Store/useChatStore";
-import { useAuthStore } from "../Store/useAuthStore";
+import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import { Users, Plus, Hash, Search } from "lucide-react";
 import CreateGroupModal from "./CreateGroupModal";
@@ -55,8 +55,8 @@ const Sidebar = () => {
                 {/* Search input */}
                 <form onSubmit={handleSearch} className="mt-4 hidden lg:flex gap-2">
                     <input
-                        type="email"
-                        placeholder="Search by email..."
+                        type="text"
+                        placeholder="Search by name or email..."
                         className="input input-sm input-bordered w-full bg-gray-50 h-9 rounded-xl focus:bg-white transition-all text-sm"
                         value={searchEmail}
                         onChange={(e) => setSearchEmail(e.target.value)}
@@ -64,7 +64,7 @@ const Sidebar = () => {
                     <button
                         type="submit"
                         className="btn btn-sm btn-primary h-9 w-9 p-0 rounded-xl"
-                        disabled={isSearchLoading}
+                        disabled={isSearchLoading || !searchEmail.trim()}
                     >
                         {isSearchLoading ? <span className="loading loading-spinner loading-xs"></span> : <Search className="size-4" />}
                     </button>
