@@ -1,4 +1,4 @@
-import { useThemeStore, THEMES } from "../store/useThemeStore";
+import { useThemeStore, THEMES } from "../Store/useThemeStore";
 import { Send } from "lucide-react";
 
 const PREVIEW_MESSAGES = [

@@ -1,7 +1,7 @@
 import { Phone, Video, X } from "lucide-react";
-import { useAuthStore } from "../store/useAuthStore";
-import { useChatStore } from "../store/useChatStore";
-import { useCallStore } from "../store/useCallStore";
+import { useAuthStore } from "../Store/useAuthStore";
+import { useChatStore } from "../Store/useChatStore";
+import { useCallStore } from "../Store/useCallStore";
 
 const ChatHeader = () => {
     const { selectedUser, setSelectedUser, selectedGroup, setSelectedGroup } = useChatStore();

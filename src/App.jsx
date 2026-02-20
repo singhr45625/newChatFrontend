@@ -11,9 +11,9 @@ import SettingsPage from "./Pages/SettingsPage";
 import ProfilePage from "./Pages/ProfilePage";
 import VideoPlayer from "./Components/VideoPlayer";
 
-import { useAuthStore } from "./store/useAuthStore";
-import { useCallStore } from "./store/useCallStore";
-import { useThemeStore } from "./store/useThemeStore";
+import { useAuthStore } from "./Store/useAuthStore";
+import { useCallStore } from "./Store/useCallStore";
+import { useThemeStore } from "./Store/useThemeStore";
 
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth, socket } = useAuthStore();

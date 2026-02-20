@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useChatStore } from "../store/useChatStore";
+import { useChatStore } from "../Store/useChatStore";
 import { X } from "lucide-react";
 
 const CreateGroupModal = ({ onClose }) => {

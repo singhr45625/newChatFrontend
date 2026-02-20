@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { useCallStore } from "../store/useCallStore";
+import { useCallStore } from "../Store/useCallStore";
 import { PhoneOff, Phone, Mic, MicOff, Video, VideoOff, Camera, Minimize2, Maximize2, ChevronLeft } from "lucide-react";
 
 const VideoPlayer = () => {
